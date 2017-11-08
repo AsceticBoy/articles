@@ -4,6 +4,7 @@
 JavaScript执行线程本身是单线程的，之所以能产生 `async` 效果，是因为它所运行的 `environment` 提供了不同的 `apis` 来帮助 `async` 的实现。如 `Browser Web API` 和 `Node C++ API`
 
 ![Event-Loop](../assets/images/event-loop.gif)
+
 ## Concept
 
 - `Macrotask/Task` 指的是 `Task Queue` 中的单元，每个 `Task` 结束后会清空所有的 `Microtask` 理论上队列中的任务应按次序执行，且在每个 `Macrotask` 执行间隙浏览器会执行 `render` 操作
@@ -54,7 +55,7 @@ for (macroTask of macroTaskQueue) {
 ## Example
 
 ## Optimize
-- **优先使用 `Microtask` **
+- **优先使用 `Microtask`**
 
   根据 `HTML Standard`，在每个 `Task` 运行完以后，`UI` 都会重渲染，那么在 `Microtask` 中就完成数据更新，当前 `Task` 结束就可以得到最新的 `UI` 了。反之如果新建一个 `Task` 来做数据更新，那么渲染就会进行两次
 
