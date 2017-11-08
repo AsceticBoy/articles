@@ -35,22 +35,24 @@ JavaScript执行线程本身是单线程的，之所以能产生 `async` 效果�
 
 - `Event Loop` 本质工作是一个监控调度器，其监控范围包括 `Call Stack` 和 `Task Queue / Microtask Queue`，在监控过程中当前的**调用栈为空**（注意：此处必须是empty），就从 `Task Queue / Microtask Queue` 中取出第一个运行单元（*调用顺序：先检查 `Microtask Queue` 是否存在可调用任务，依次获取(理论上)，直到取完后，再从 `Task Queue` 中依次获取获取(理论上)*），将其推送至调用堆栈，有效运行它
 
-```js
-// pseudo code like this
-// 事件轮询机制将一次iterator作为获取一次macrotask的过程
-for (macroTask of macroTaskQueue) {
-  // 1. 处理当前的macrotask
-  handleMacroTask();
-  // 2. 处理所有tick queue一般就是指process.nextTick()的情况
-  for (nextTick of nextTickQueue) {
-      handleNextTick(nextTick);
+  ```js
+  // pseudo code like this
+  // 事件轮询机制将一次iterator作为获取一次macrotask的过程
+  for (macroTask of macroTaskQueue) {
+    // 1. 处理当前的macrotask
+    handleMacroTask();
+    // 2. 处理所有tick queue一般就是指process.nextTick()的情况
+    for (nextTick of nextTickQueue) {
+        handleNextTick(nextTick);
+    }
+    // 3. 处理所有microtask queue的任务
+    for (microTask of microTaskQueue) {
+        handleMicroTask(microTask);
+    }
   }
-  // 3. 处理所有microtask queue的任务
-  for (microTask of microTaskQueue) {
-      handleMicroTask(microTask);
-  }
-}
-```
+  ```
+
+  ​
 
 ## Example
 
