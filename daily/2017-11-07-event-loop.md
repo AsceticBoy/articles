@@ -10,7 +10,7 @@ JavaScript执行线程本身是单线程的，之所以能产生 `async` 效�
 - `Macrotask/Task` 指的是 `Task Queue` 中的单元，每个 `Task` 结束后会清空所有的 `Microtask` 理论上队列中的任务应按次序执行，且在每个 `Macrotask` 执行间隙浏览器会执行 `render` 操作
 
   ```js
-  // 注：测试后发现在不同的环境下表现的情况不尽相同，比如在不同浏览器环境下，以及浏览器和node环境下
+  // 注：测试后发现在不同的环境下表现的情况不尽相同，比如在不同浏览器环境下，以及浏览器和node环境下
   setImmediate(function(){
     console.log(1);
   },0);
@@ -37,7 +37,7 @@ JavaScript执行线程本身是单线程的，之所以能产生 `async` 效�
 
 ```js
 // pseudo code like this
-// 事件轮询机制将一次iterator作为获取一次macrotask的过程
+// 事件轮询机制将一次iterator作为获取一次macrotask的过程
 for (macroTask of macroTaskQueue) {
   // 1. 处理当前的macrotask
   handleMacroTask();
@@ -45,7 +45,7 @@ for (macroTask of macroTaskQueue) {
   for (nextTick of nextTickQueue) {
       handleNextTick(nextTick);
   }
-  // 3. 处理所有microtask queue的任务
+  // 3. 处理所有microtask queue的任务
   for (microTask of microTaskQueue) {
       handleMicroTask(microTask);
   }
