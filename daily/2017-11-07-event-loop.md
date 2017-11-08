@@ -31,7 +31,7 @@ JavaScript执行线程本身是单线程的，之所以能产生 `async` 效果�
 
 - `Tick` 是 `Event Loop` 一次 `Iterator`
 
-- `Job Queue` 是 `ECMAScript` 针对 `Promise` 提出来的一个概念，可以简单理解为类似 `Microtask Queue`
+- `Job Queue` 是 `ECMAScript` 针对 `Promise` 提出来的一个概念，可以简单理解为类似 `Microtask Queue`
 
 - `Event Loop` 本质工作是一个监控调度器，其监控范围包括 `Call Stack` 和 `Task Queue / Microtask Queue`，在监控过程中当前的**调用栈为空**（注意：此处必须是empty），就从 `Task Queue / Microtask Queue` 中取出第一个运行单元（*调用顺序：先检查 `Microtask Queue` 是否存在可调用任务，依次获取(理论上)，直到取完后，再从 `Task Queue` 中依次获取获取(理论上)*），将其推送至调用堆栈，有效运行它
 
