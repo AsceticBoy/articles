@@ -266,10 +266,52 @@
 ```
 
 ## Redux Publish-Subscribe
-- [ ] 依据源码抽离发布/订阅模式的抽象形式
+
+从redux的使用介绍中我们可以看出，从动作参数的输入到store的改变，`store` 充当了 `数据中心` 和 `调度者` 的身份，我们将源码化繁为简，对这种模式的核心部分进行抽象
+
+```js
+  function controlCenter(initalData) {
+    // data: 外界无法直接访问的私有变量，产生任何变化都将触发反馈
+    let data = initalData;
+    // listeners：可以泛指监听函数，当data改变时触发调用，reducers和currentListeners都是如此
+    let listeners = []
+    // dispatch: 触发改变的行为让listener得到反馈
+    function dispatch(condition) {
+      // TODO: condition -> change data 这部分在redux中由reducer充当
+      // data的改变进一步反馈到监听器
+      for (var i = 0; i <= listeners.length; i++) {
+        if (typeof listeners[i] === 'function') {
+          listeners[i](data)
+        }
+      }
+    }
+    // register：在得到监听前，需要将监听函数提前注册挂载
+    function register(listener) {
+      // 防止重复注册
+      if (listeners.indexOf(listener) > -1) {
+        listeners.push(listener)
+        // cancalRegister：注销监听器不是必须的
+        return function cancalRegister() {
+          let index = listeners.indexOf(listener)
+          listeners.splice(index, 1)
+        }
+      }
+    }
+    // 暴露给外面获取数据的方式
+    function getData() {
+      return data
+    }
+    return {
+      getData,
+      dispatch,
+      register
+    }
+  }
+```
+抽象出来的单元也被称为 `发布/订阅模式`，这是一种非常常见的设计模式，是很多框架的底层依赖。一些新起API（ `Obserable/Observer` ）大多都基于它的模式思想上做了进一步的优化。
 
 ## Redux Middleware
-- [ ] 中间件的使用入手到核心辕马分析
+- [ ] 中间件的使用入手到核心源码分析
 - [ ] 思考抽离出redux Middleware的抽象模式
 
 ## Redux Enhancer
