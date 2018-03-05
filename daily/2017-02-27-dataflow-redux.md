@@ -311,8 +311,152 @@
 抽象出来的单元也被称为 `发布/订阅模式`，这是一种非常常见的设计模式，是很多框架的底层依赖。一些新起API（ `Obserable/Observer` ）大多都基于它的模式思想上做了进一步的优化。
 
 ## Redux Middleware
-- [ ] 中间件的使用入手到核心源码分析
-- [ ] 思考抽离出redux Middleware的抽象模式
+
+正如我们前面所说的那样，redux的store部分主要规范了数据的驱动方式，起到了调度者的作用。如果仅仅是这样，redux也不会这么出名，它并没有解决前端最繁琐的副作用问题。显然它需要让redux保留扩展的活性，让开发者来解决这些脏活累活，而它只应该在store数据更改的关卡上进行把关，约束store state的改变方式。`Middleware` 赋予了redux新的生命力。
+
+现假设我们需要在用户发起一个action的过程中记录下对象信息并且在store改变后打印出新的state，记录下日志便于排查。
+  ```js
+    function wrapperDispatch(action) {
+      console.log(action)
+      store.dispatch(action)
+      console.log(store.getData())
+    }
+  ```
+我们在dispatch触发前后输出了相关日志，封装成了函数，但是破坏了redux的写法，这非常的不直观。对于redux而言，所谓的中间件是指在发起action到reducer改变数据过程中的扩展，这个过程中我们能改变的只有dispatch，但你我们既需要保持dispatch现有的写法，又要让Middleware的实现对用户是无感知的。`猴子补丁` 是一个选择方案。
+  ```js
+    // 因为返回的是一个闭包，我们可以在createStore的时候先将它注册到redux上
+    function logger(store) {
+      let next = store.dispatch
+      return function newDispatch(action) {
+        console.log(action)
+        next(action)
+        console.log(store.getData())
+      }
+    }
+    // 这册这个logger插件
+    function registerMiddleware(store, middleware) {
+      let dispatch = logger(store)
+      return { ...store, dispatch }
+    }
+  ```
+猴子补丁解决了破坏redux写法的问题，但是上面的代码存在两个关键性问题
+  - 1.猴子补丁实际上是对函数的重载，即便是重新调用了破坏前的原始函数，也和低耦合的思想相违背
+  - 2.在多个中间件相继注册的过程中，代码尚未提供多个被包装的dispatch之间的链接（中间件之间没有通信）
+
+来看看redux是怎么巧妙的解决这两个问题的：
+  ```js
+    // 使用过程中先注册需要的中间件,这里就以thunk和logger示例
+    applyMiddleware(logger, thunk)
+    // redux applyMiddleware相当于链接注册了各个中间件的作用
+    function applyMiddleware(...middlewares) {
+      return createStore => (...args) => {
+        // 生成原始store
+        const store = createStore(...args)
+        let dispatch = () => {
+          throw new Error(
+            `Dispatching while constructing your middleware is not allowed. ` +
+              `Other middleware would not be applied to this dispatch.`
+          )
+        }
+        let chain = []
+
+        const middlewareAPI = {
+          getState: store.getState,
+          dispatch: (...args) => dispatch(...args)
+        }
+        chain = middlewares.map(middleware => middleware(middlewareAPI))
+        dispatch = compose(...chain)(store.dispatch)
+
+        return {
+          ...store,
+          dispatch
+        }
+      }
+    }
+  ```
+单独看applyMiddleware会让人摸不着头脑，那我们配合thunk的源码来看
+  ```js
+    // thunk
+    ({ dispatch, getState }) => next => action => {
+      if (typeof action === 'function') {
+        return action(dispatch, getState, extraArgument);
+      }
+
+      return next(action);
+    };
+  ```
+`applyMiddleware` 首先调用之前的createStore方法，返回redux最初的 `store对象`，将 `store.getState` 和 `新的dispatch` 注入到每个中间件中
+  ```js
+    const middlewareAPI = {
+      getState: store.getState,
+      dispatch: (...args) => dispatch(...args)
+    }
+    chain = middlewares.map(middleware => middleware(middlewareAPI))
+    // ↓ ↓ ↓ ↓ ↓
+    ({ dispatch, getState }) => () => () => {}
+  ```
+- 注意：这里的dispatch由于是引用的值传递，所以永远指向新的dispatch
+
+通过注入的方式每个Middleware已经得到store的高阶API了，但是此时dispatch并未发生实质性变化，也未做猴子补丁。随后redux调用了 `compose(...chain)(store.dispatch)` 返回新的dispatch方法并覆盖，代码完结
+  ```js
+    dispatch = compose(...chain)(store.dispatch)
+
+    return {
+      ...store,
+      dispatch
+    }
+  ```
+是不是很神奇（第一次我也觉得amazing，哈哈，原谅没怎么接触过函数式的我）！redux真的只用的一行代码就优雅的解决了Middleware的痛点。奥妙在于 `compose`
+ ```js
+  function compose(...funcs) {
+    if (funcs.length === 0) {
+      return arg => arg
+    }
+
+    if (funcs.length === 1) {
+      return funcs[0]
+    }
+
+    return funcs.reduce((a, b) => (...args) => a(b(...args)))
+  }
+ ```
+在函数式编程中compose是个非常基础的概念，其目的是 `将一串相互独立的函数进行串联，返回一个新的函数，调用后，各函数按一定顺序，依次执行（从左到右），后一个函数的返回将作为前一个函数的入参`。compose将各个独立的函数块进行了拼接，像搭积木一样保证了功能之间松散型。
+
+compose的理念恰好与我们解决问题的思路不谋而合：
+
+- 1.首先compose的特性可以保证中间件的执行顺序问题。`因为每个中间件的next正好是下一个需要执行的中间件函数，而是否要继续往下调用，取决于当前中间件`。
+  ```js
+    // 以logger和thunk为例
+    let logger = (middlewareAPI) => next => action => {
+      // TODO
+      return next(action)
+    }
+    let thunk = (middlewareAPI) => next => action => {
+      // TODO
+      return next(action)
+    }
+    applyMiddleware(logger, thunk)
+    let composed = compose([
+      next => action => { // ... } // logger
+      next => action => { // ... } // thunk
+    ])
+    // 当compose启动
+    compose(store.action)
+    // 可以看出：logger的 action => {} 将作为thunk的 next
+    // 依次类推所有中间的拼接...
+  ```
+  所有中间件经过这样拼接后，最终返回的dispatch才是现在redux中最终的dispatch，所以当 `store.dispatch(action)` 执行时，所有的中间件会 `按着注册的顺序依次进行`。
+
+- 2.通过 `柯里化` 替换了猴子补丁，动作和目标解耦
+  ```js
+    let logger = (middlewareAPI) => next => action => {
+      // next和action都以参数的形式传入函数体
+      return next(action)
+    }
+  ```
+中间件的执行顺序需要特别注意：`compose(...chain)(store.dispatch)` 中间件是 `从右往左传递next`，但是返回的dispatch一旦执行却是 `从左往右执行中间件`，而且是否继续调用后面的中间件取决于当前中间件。
+
+对于中间件，`express`等服务端框架运用的更早，各中实现其实都是差不多的。redux的作用依旧是调度，只有符合了 `(middlewareAPI) => next => action => { next(action) }` 形式的Middlewares才能受到redux的管理，这也是约束。
 
 ## Redux Enhancer
 - [ ] 增强器的使用 -> 源码查看 -> 实质
