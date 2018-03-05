@@ -459,9 +459,129 @@ compose的理念恰好与我们解决问题的思路不谋而合：
 对于中间件，`express`等服务端框架运用的更早，各中实现其实都是差不多的。redux的作用依旧是调度，只有符合了 `(middlewareAPI) => next => action => { next(action) }` 形式的Middlewares才能受到redux的管理，这也是约束。
 
 ## Redux Enhancer
-- [ ] 增强器的使用 -> 源码查看 -> 实质
+
+仅仅是Middleware，redux认为或许还不够满足用户，redux Middleware能包装的只有dispatch，如果用户还想修饰store的其他方法，可能有些捉襟见肘了。`store enhancer` 就是用来提供给用户更宽泛的扩展可能性。
+```js
+  // 先看下redux怎么注册store enhancer
+  // 这是createStore的函数签名，初始化数据和enhancer是可选字段
+  createStore(reducer, [preloadedState], [enhancer])
+
+  // store enhancer(增强器)的一般形式
+  function createEnhancer(...someThingExtra) {
+    return createStore => (...args) => {
+      // TODO
+      let store = createStore(...args)
+      // convert store funcs...
+    }
+  }
+  // 使用
+  createStore(
+    combineReducer(reducers),
+    initalState,
+    createEnhancer()
+  )
+```
+从上面的签名中可以注意到：`applyMiddleware函数本身就是一个store enhancer的生成器`。它串联所有中间件，返回包装后的dispatch重载原始方法，称为enhancer很贴切。
+
+当出现多个store enhancer的时候，我们需要先将enhancers组合生成一个新的enhancer作为createStore的入参
+```js
+  let enhancerA = (...extra) => createStore => (...args) => {
+    let store = createStore(...args)
+    // convert store funcs...
+    return { ...store, ...[converts] }
+  }
+  let enhancerB = (...extra) => createStore => (...args) => {
+    let store = createStore(...args)
+    // convert store funcs...
+    return { ...store, ...[converts] }
+  }
+  let enhancer = compose(enhancerA(), enhancerB())
+  // usage
+  createStore(
+    combineReducer(reducers),
+    initalState,
+    enhancer
+  )
+```
+这段代码是不是有点似曾相识的感觉，关键是又见到了 `compose` 函数，意味着 `enhancerA和enhancerB像中间件一样进行了组合`，结合createStore中enhancer的部分，我们再来仔细看看：
+```js
+  function createStore(reducer, preloadedState, enhancer) {
+    if (typeof preloadedState === 'function' && typeof enhancer === 'undefined') {
+      enhancer = preloadedState
+      preloadedState = undefined
+    }
+
+    if (typeof enhancer !== 'undefined') {
+      if (typeof enhancer !== 'function') {
+        throw new Error('Expected the enhancer to be a function.')
+      }
+      return enhancer(createStore)(reducer, preloadedState)
+    }
+    // ....
+  }
+```
+关键性代码是 `enhancer(createStore)(reducer, preloadedState)`，如果像dispatch一样，我们把所有的createStore理解为 `next`，一切就好理解多了
+```js
+  let enhancerA = (...extra) => next => (...args) => {
+    let store = next(...args)
+    // convert store funcs...
+    return { ...store, ...[converts] }
+  }
+  let enhancerB = (...extra) => next => (...args) => {
+    let store = next(...args)
+    // convert store funcs...
+    return { ...store, ...[converts] }
+  }
+  compose(enhancerA(), enhancerB())(createStore)(reducer, preloadedState)
+```
+store enhancers的串联模式和redux middlewares是完全一样的，`每个enhancer的入参next是下一个enhancer的增强函数`，差别只存在于：`中间件是按注册顺序依次调用，而增强器是逆序增强（即：前一个增强始终是基于后一个增强器返回的store进一步增强）`。
+```js
+  let funcA = (...extra) => next => (...args) => {
+    console.log('funcA before')
+    let result = next(...args)
+    console.log('funcA after')
+    return result
+  }
+  let funcB = (...extra) => next => (...args) => {
+    console.log('funcB before')
+    let result = next(...args)
+    console.log('funcB after')
+    return result
+  }
+  let funC = (...extra) => next => (...args) => {
+    console.log('funcC before')
+    let result = next(...args)
+    console.log('funcC after')
+    return result
+  }
+  compose(funcA(...extra), funcB(...extra), funC(...extra))(initNext)(...args)
+  // console order...
+  // funcA before
+  // funcB before
+  // funcC before
+  // funcC after
+  // funcB after
+  // funcA after
+```
+从上面的打印顺序能很好的看出middleware和enhancer的调用顺序差别，可以看出 `enhancer的执行顺序非常的关键`。只有清楚完整的调用过程，才能避免破坏性enhancer出现。比如：
+```js
+  function breakingEnhancer(...extra) {
+    return createStore => (...args) => {
+      const store = createStore(reducer, initialState, enhancer)
+      function dispatch(action) {
+        // TODO...
+        return res;
+      }
+      return { ...store, dispatch }
+    }
+  }
+```
+这个增强器重载了redux dispatch但没有将原始的dispatch保留下来，破坏了redux的工作流。所以拓展自己的store enhancer非常关键的一点就是：`store enhancer是store的扩展，但是不应破坏redux原有的工作流，否则将导致redux不可用`
+
+[redux][2]做的所有任务基本就是这些，小而精美，不干涉数据更改以外的其他行为，提供了插拔式的中间件和增强器的拓展形式。保持约束的同时也没有强行限制关键性API的更改，一切都给用户留有余地。
 
 ## React-Redux
 - [ ] react-redux源码分析 -> 思考启示
 
 [1]:https://github.com/tc39/proposal-observable/blob/master/src/Observable.js
+[2]:https://github.com/reactjs/redux/blob/master/README.md
