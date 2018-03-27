@@ -580,8 +580,5 @@ store enhancers的串联模式和redux middlewares是完全一样的，`每个en
 
 [redux][2]做的所有任务基本就是这些，小而精美，不干涉数据更改以外的其他行为，提供了插拔式的中间件和增强器的拓展形式。保持约束的同时也没有强行限制关键性API的更改，一切都给用户留有余地。
 
-## React-Redux
-- [ ] react-redux源码分析 -> 思考启示
-
 [1]:https://github.com/tc39/proposal-observable/blob/master/src/Observable.js
 [2]:https://github.com/reactjs/redux/blob/master/README.md
