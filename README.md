@@ -1,7 +1,13 @@
-# 技术随想
+personal blog
+=============
 
-主要收录一些自己的文章和感悟
+blog contain：
 
-- [React](./React/overview.md)
+  - study notes of technology developer
+  - share some personal toolkit
+  - record good idea or magic skill of develop
 
+road maps
 
+  - [ ] build blog with static website
+  - [ ] synchronize daily blog to github issue and zhihu
