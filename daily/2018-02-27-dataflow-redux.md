@@ -123,7 +123,8 @@
       }
     })
   ```
-  **而且可以看出combineReducers的返回函数其实就是一个 `闭包`，整合了 `所有的合法reducers的一个集合`（在combineReducers.js做了一系列的验证来保证reducer的规范），并且在每次 `dispatch` 调用时触发**
+
+最后，combineReducers的返回一个函数，在每次 dispatch 的时候，取出 `每个Reducer函数` 触发调用（内部其实还做了 `hasChanged` 判断，若前后数据未发生变更就直接返回原数据）
   ```js
     // 这是在源码dispatch的调用位置
     // currentReducer其实就是combineReducers的返回
@@ -134,6 +135,16 @@
       isDispatching = false
     }
   ```
+
+总结一下 combineReducers 做了些什么：
+
+  - 遍历所有 Reducers，剔除掉无效的（不属于一个function）
+  - 验证每一个 Reducer 的返回是否合法（正常应该是 state[key]，不可以为 undefined，可以为 null）
+  - 返回一个函数，在每次 dispatch 触发时调用
+    - 函数内部如果发现之前 Reducer 存在不合法的情况，抛出错误
+    - `遍历合法的 Reducers(Object.keys(Reducers)) 取出 previousState[key] 和 action 对象作为当前 Reducer 的入参`，这里的 key 算是 Reducers 结构的约定，从中也体现出 Redux 推崇扁平化数据的原因
+    - `比较前后数据是否有变更（previousStateForKey 和 nextStateForKey），如果存在一组数据发生变更就返回新的全局 State，否则还是返回旧的全局 State`
+
 `Store`：redux中连接action和reducer的枢纽，同时也是存放唯一数据源的实例。提供了一系列方法
   - `getState()`：获取数据源state
   - `dispatch()`：触发 `reducers` 和 `listeners`，改变state且响应第三方模块的监听函数
