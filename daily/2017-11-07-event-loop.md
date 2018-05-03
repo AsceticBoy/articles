@@ -71,7 +71,7 @@ Task of Event loops
 
   - [`Promise`][6]
   - [`MutationObserver`][7]：前期 Vue 的异步更新队列以及 `nextTick` 依靠它实现
-  - [`Object.observe`]：已经被废弃
+  - `Object.observe`：已经被废弃
 
 注意：`process.nextTick` 这个属于 `node` 自己的 nextTickQueue 实现，不在标准中，一般来说 process.nextTick 会优先于 MicroTask 执行。[参看这里][8]
 
