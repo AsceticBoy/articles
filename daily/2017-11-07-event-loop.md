@@ -56,6 +56,29 @@ Task of Event loops
 
 但其实Task 的定义非常宽泛，常见的 `setTimeout`、`setInterval`、`<script />` 也都属于 Task 的范畴。其实可以理解 Task 为一个事件单元，而每次执行完一次事件的过程，也就是 Event loops 中的一次循环
 
+这里提一下对于 `setInterval` 需要注意的点：
+
+  - `setInterval` 在定时向 Task 中添加事件的过程中，若发现队列中还有该定时器推送的未执行事件，就不会再添加。
+
+  - `setInterval` 有可能出现在即便不阻塞，两个相邻事件执行的时间间隔小于预置时间的情况。
+
+    - 当事件本身执行时间少于预置时间，两个相邻事件的 `leave -> enter = 预置时间 - 函数执行时间`。如图：
+
+      ![Event-Loop](../assets/images/event-loop-interval1.png)
+
+    - 当事件本身执行时间大于预置时间，两个相邻事件的 `leave -> enter = 0`。如图：
+
+      ![Event-Loop](../assets/images/event-loop-interval2.png)
+
+    - 可以看出无论何种情况，setInterval 都无法做到真正的 `leave -> enter = 预置时间` 的情况，所以这也是大多数用 setTimeout 来替代 setInterval 的根本原因。模式大概如下
+
+      ```js
+        setTimeout(function repeatMe() {     
+          /* Some long block of code... */
+          setTimeout(repeatMe, 10);          
+        }, 10)
+      ```
+
 多个Queue会遵循以下原则：
 
   - 来自相同 Task Source 的 Task，必须放在同一个 Task Queue 中
